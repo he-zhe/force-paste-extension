@@ -167,6 +167,9 @@ async function ensureOffscreenDocument() {
     });
   }
 
-await creatingOffscreenDocument;
-creatingOffscreenDocument = undefined;
+  try {
+    await creatingOffscreenDocument;
+  } finally {
+    creatingOffscreenDocument = undefined;
+  }
 }
