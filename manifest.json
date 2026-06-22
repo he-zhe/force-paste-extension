@@ -1,0 +1,38 @@
+{
+  "manifest_version": 3,
+  "name": "Force Paste",
+  "description": "Adds a Force Paste context-menu action for editable fields that block normal paste.",
+  "version": "0.1.0",
+  "minimum_chrome_version": "109",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "permissions": [
+    "activeTab",
+    "clipboardRead",
+    "contextMenus",
+    "offscreen",
+    "scripting"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "src/background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "src/content.js"
+      ],
+      "all_frames": true,
+      "run_at": "document_start"
+    }
+  ]
+}

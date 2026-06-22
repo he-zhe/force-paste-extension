@@ -1,0 +1,642 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Force Paste Integration Test</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --accent: #2563eb;
+        --danger: #b91c1c;
+        --ok: #15803d;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        line-height: 1.45;
+      }
+
+      body {
+        margin: 0;
+        background: Canvas;
+        color: CanvasText;
+      }
+
+      main {
+        width: min(1040px, calc(100vw - 32px));
+        margin: 0 auto;
+        padding: 32px 0;
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: clamp(1.5rem, 4vw, 2.25rem);
+      }
+
+      h2 {
+        margin: 0 0 12px;
+        font-size: 1.05rem;
+      }
+
+      p {
+        margin: 0 0 20px;
+        max-width: 78ch;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 16px;
+      }
+
+      section,
+      .log,
+      .intro {
+        border: 1px solid color-mix(in srgb, CanvasText 18%, transparent);
+        border-radius: 8px;
+        padding: 16px;
+      }
+
+      .intro {
+        margin: 18px 0;
+      }
+
+      label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+        font-weight: 650;
+      }
+
+      input,
+      textarea,
+      [contenteditable="true"] {
+        box-sizing: border-box;
+        width: 100%;
+        min-height: 44px;
+        border: 1px solid color-mix(in srgb, CanvasText 24%, transparent);
+        border-radius: 6px;
+        padding: 10px 12px;
+        background: Field;
+        color: FieldText;
+        font: inherit;
+      }
+
+      textarea,
+      [contenteditable="true"] {
+        min-height: 96px;
+      }
+
+      textarea {
+        resize: vertical;
+      }
+
+      button {
+        min-height: 40px;
+        border: 1px solid color-mix(in srgb, CanvasText 24%, transparent);
+        border-radius: 6px;
+        padding: 0 14px;
+        background: ButtonFace;
+        color: ButtonText;
+        font: inherit;
+        cursor: pointer;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 18px 0 0;
+      }
+
+      .status {
+        min-height: 22px;
+        margin-top: 10px;
+        font-size: 0.92rem;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        min-height: 20px;
+        border-radius: 999px;
+        padding: 0 8px;
+        background: var(--danger);
+        color: white;
+        font-size: 0.72rem;
+        font-weight: 700;
+      }
+
+      .badge.ok {
+        background: var(--ok);
+      }
+
+      .hint {
+        margin: -2px 0 10px;
+        color: color-mix(in srgb, CanvasText 62%, transparent);
+        font-size: 0.9rem;
+      }
+
+      iframe {
+        box-sizing: border-box;
+        width: 100%;
+        min-height: 190px;
+        border: 1px solid color-mix(in srgb, CanvasText 24%, transparent);
+        border-radius: 6px;
+        background: Canvas;
+      }
+
+      .log {
+        margin-top: 16px;
+      }
+
+      pre {
+        min-height: 160px;
+        max-height: 280px;
+        overflow: auto;
+        margin: 0;
+        padding: 12px;
+        border-radius: 6px;
+        background: color-mix(in srgb, CanvasText 8%, Canvas);
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Force Paste Integration Test</h1>
+      <p>
+        This page blocks normal paste paths on the target fields. Load the unpacked extension,
+        copy sample text, then right-click inside a blocked field and choose Force Paste.
+      </p>
+
+      <section class="intro">
+        <h2>Manual Check</h2>
+        <p>
+          The blocked fields cancel paste, copy, cut, drop, and modern beforeinput paste events
+          during capture. The controlled-style field also rejects paste-like direct value jumps.
+        </p>
+        <div class="actions">
+          <button id="copy-sample" type="button">Copy sample text</button>
+          <button id="clear-fields" type="button">Clear fields</button>
+          <button id="clear-log" type="button">Clear log</button>
+        </div>
+        <div id="status" class="status" role="status"></div>
+      </section>
+
+      <div class="grid">
+        <section>
+          <label for="allowed-textarea">Paste allowed control <span class="badge ok">allowed</span></label>
+          <p class="hint">Baseline field. Normal browser paste is allowed here.</p>
+          <textarea id="allowed-textarea" autocomplete="off"></textarea>
+        </section>
+
+        <section>
+          <label for="blocked-input">Text input <span class="badge">blocked</span></label>
+          <p class="hint">Plain input with aggressive paste blocking.</p>
+          <input id="blocked-input" data-block-paste autocomplete="off">
+        </section>
+
+        <section>
+          <label for="blocked-password">Password input <span class="badge">blocked</span></label>
+          <p class="hint">Common password-confirmation case.</p>
+          <input id="blocked-password" data-block-paste type="password" autocomplete="off">
+        </section>
+
+        <section>
+          <label for="blocked-email">Email input <span class="badge">blocked</span></label>
+          <p class="hint">Email fields can throw on selection APIs, so this checks fallback insertion.</p>
+          <input id="blocked-email" data-block-paste type="email" autocomplete="off">
+        </section>
+
+        <section>
+          <label for="blocked-textarea">Textarea <span class="badge">blocked</span></label>
+          <p class="hint">Multi-line text control with paste blocked.</p>
+          <textarea id="blocked-textarea" data-block-paste autocomplete="off"></textarea>
+        </section>
+
+        <section>
+          <label for="blocked-editable">Contenteditable <span class="badge">blocked</span></label>
+          <p class="hint">Blocks paste and beforeinput insertFromPaste.</p>
+          <div id="blocked-editable" data-block-paste contenteditable="true" role="textbox" aria-multiline="true"></div>
+        </section>
+
+        <section>
+          <label for="blocked-controlled">Controlled-style input <span class="badge">blocked</span></label>
+          <p class="hint">Rejects direct value assignments that look like paste jumps.</p>
+          <input id="blocked-controlled" data-block-paste autocomplete="off">
+        </section>
+
+        <section>
+          <label for="blocked-iframe">Iframe input <span class="badge">blocked</span></label>
+          <p class="hint">Separate frame context. Extension content scripts must run in all frames.</p>
+          <iframe id="blocked-iframe" title="Blocked paste iframe"></iframe>
+        </section>
+      </div>
+
+      <section class="log">
+        <label for="event-log">Event log</label>
+        <pre id="event-log"></pre>
+      </section>
+    </main>
+
+    <script>
+      const blockedIds = [
+        "blocked-input",
+        "blocked-password",
+        "blocked-email",
+        "blocked-textarea",
+        "blocked-editable",
+        "blocked-controlled"
+      ];
+      const logElement = document.querySelector("#event-log");
+      const statusElement = document.querySelector("#status");
+      const controlledInput = document.querySelector("#blocked-controlled");
+      const nativeInputValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
+      const nativeTextAreaValue = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value");
+      let controlledValue = "";
+
+      installHostileBlockers();
+      installControlledInput();
+      installLogging();
+      installBlockedIframe();
+
+      document.querySelector("#copy-sample").addEventListener("click", async () => {
+        const text = `Force Paste sample ${new Date().toISOString()}`;
+
+        try {
+          await navigator.clipboard.writeText(text);
+          statusElement.textContent = `Copied: ${text}`;
+          appendLog(`clipboard sample copied: ${text}`);
+        } catch (error) {
+          const textarea = document.createElement("textarea");
+          textarea.value = text;
+          document.body.appendChild(textarea);
+          textarea.select();
+          const copied = document.execCommand("copy");
+          textarea.remove();
+          statusElement.textContent = copied ? `Copied: ${text}` : `Clipboard write failed: ${error.message}`;
+          appendLog(copied ? `clipboard sample copied with fallback: ${text}` : `clipboard write failed: ${error.message}`);
+        }
+      });
+
+      document.querySelector("#clear-fields").addEventListener("click", () => {
+        clearFields();
+        appendLog("fields cleared");
+      });
+
+      document.querySelector("#clear-log").addEventListener("click", () => {
+        logElement.textContent = "";
+      });
+
+      appendLog("test page ready");
+
+      function installHostileBlockers() {
+        for (const type of ["paste", "copy", "cut", "drop"]) {
+          document.addEventListener(type, blockHostileEvent, true);
+        }
+
+        document.addEventListener("beforeinput", (event) => {
+          if (
+            event.inputType === "insertFromPaste" ||
+            event.inputType === "insertFromPasteAsQuotation"
+          ) {
+            blockHostileEvent(event);
+          }
+        }, true);
+      }
+
+      function blockHostileEvent(event) {
+        const target = getBlockedTarget(event.target);
+        if (!target) {
+          return true;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        appendLog(`${event.type} blocked on #${target.id}`);
+        return false;
+      }
+
+      function getBlockedTarget(target) {
+        const element = target instanceof Element ? target : target?.parentElement;
+        return element?.closest?.("[data-block-paste]") || null;
+      }
+
+      function installControlledInput() {
+        Object.defineProperty(controlledInput, "value", {
+          configurable: true,
+          get() {
+            return nativeInputValue.get.call(controlledInput);
+          },
+          set(value) {
+            const current = nativeInputValue.get.call(controlledInput);
+            if (String(value).length - current.length > 2) {
+              appendLog(`direct paste-like value assignment rejected on #${controlledInput.id}`);
+              return;
+            }
+            nativeInputValue.set.call(controlledInput, value);
+            controlledValue = value;
+          }
+        });
+
+        controlledInput.addEventListener("input", () => {
+          controlledValue = controlledInput.value;
+        });
+      }
+
+      function installLogging() {
+        for (const selector of "input, textarea, [contenteditable='true']".split(", ")) {
+          for (const element of document.querySelectorAll(selector)) {
+            element.addEventListener("input", logInput);
+            element.addEventListener("change", logInput);
+          }
+        }
+      }
+
+      function installBlockedIframe() {
+        const iframe = document.getElementById("blocked-iframe");
+        iframe.srcdoc = `
+          <!doctype html>
+          <html lang="en">
+            <head>
+              <meta charset="utf-8">
+              <style>
+                :root {
+                  color-scheme: light dark;
+                  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                }
+
+                body {
+                  margin: 0;
+                  padding: 14px;
+                  background: Canvas;
+                  color: CanvasText;
+                }
+
+                label {
+                  display: block;
+                  margin-bottom: 8px;
+                  font-weight: 650;
+                }
+
+                input {
+                  box-sizing: border-box;
+                  width: 100%;
+                  min-height: 44px;
+                  border: 1px solid color-mix(in srgb, CanvasText 24%, transparent);
+                  border-radius: 6px;
+                  padding: 10px 12px;
+                  background: Field;
+                  color: FieldText;
+                  font: inherit;
+                }
+
+                pre {
+                  min-height: 46px;
+                  max-height: 76px;
+                  overflow: auto;
+                  margin: 12px 0 0;
+                  padding: 8px;
+                  border-radius: 6px;
+                  background: color-mix(in srgb, CanvasText 8%, Canvas);
+                  white-space: pre-wrap;
+                }
+              </style>
+            </head>
+            <body>
+              <label for="iframe-blocked-input">Iframe blocked input</label>
+              <input id="iframe-blocked-input" data-block-paste autocomplete="off">
+              <pre id="iframe-log"></pre>
+              <script>
+                const input = document.getElementById("iframe-blocked-input");
+                const logElement = document.getElementById("iframe-log");
+
+                for (const type of ["paste", "copy", "cut", "drop"]) {
+                  document.addEventListener(type, blockHostileEvent, true);
+                }
+
+                document.addEventListener("beforeinput", (event) => {
+                  if (
+                    event.inputType === "insertFromPaste" ||
+                    event.inputType === "insertFromPasteAsQuotation"
+                  ) {
+                    blockHostileEvent(event);
+                  }
+                }, true);
+
+                input.addEventListener("input", () => appendLog("input: " + JSON.stringify(input.value)));
+                input.addEventListener("change", () => appendLog("change: " + JSON.stringify(input.value)));
+
+                function blockHostileEvent(event) {
+                  const target = event.target instanceof Element
+                    ? event.target.closest("[data-block-paste]")
+                    : null;
+                  if (!target) {
+                    return true;
+                  }
+
+                  event.preventDefault();
+                  event.stopPropagation();
+                  event.stopImmediatePropagation();
+                  appendLog(event.type + " blocked");
+                  return false;
+                }
+
+                function appendLog(line) {
+                  logElement.textContent = new Date().toLocaleTimeString() + " " + line + "\\n" + logElement.textContent;
+                }
+
+                function focusField(start, end) {
+                  input.focus();
+                  const selectionStart = Number.isInteger(start) ? start : input.value.length;
+                  const selectionEnd = Number.isInteger(end) ? end : selectionStart;
+                  input.setSelectionRange(selectionStart, selectionEnd);
+                }
+
+                window.forcePasteFrameTest = {
+                  assertPasteBlocked() {
+                    const event = new ClipboardEvent("paste", {
+                      bubbles: true,
+                      cancelable: true
+                    });
+                    return input.dispatchEvent(event) === false;
+                  },
+
+                  assertBeforeInputPasteBlocked() {
+                    const event = new InputEvent("beforeinput", {
+                      bubbles: true,
+                      cancelable: true,
+                      inputType: "insertFromPaste",
+                      data: "blocked"
+                    });
+                    return input.dispatchEvent(event) === false;
+                  },
+
+                  clearField() {
+                    input.value = "";
+                  },
+
+                  getValue() {
+                    return input.value;
+                  },
+
+                  rightClickField(start, end) {
+                    focusField(start, end);
+                    input.dispatchEvent(new MouseEvent("contextmenu", {
+                      bubbles: true,
+                      cancelable: true,
+                      composed: true,
+                      button: 2
+                    }));
+                  },
+
+                  sendForcePaste(text) {
+                    if (!window.__forcePasteMessageListener) {
+                      throw new Error("Force Paste iframe harness is not installed.");
+                    }
+
+                    return new Promise((resolve) => {
+                      window.__forcePasteMessageListener({
+                        type: "FORCE_PASTE_TEXT",
+                        text
+                      }, {}, resolve);
+                    });
+                  }
+                };
+              <\/script>
+            </body>
+          </html>
+        `;
+      }
+
+      function logInput(event) {
+        const value = getValue(event.currentTarget.id);
+        appendLog(`${event.type} on #${event.currentTarget.id}: ${JSON.stringify(value)}`);
+      }
+
+      function clearFields() {
+        for (const selector of "input, textarea, [contenteditable='true']".split(", ")) {
+          for (const element of document.querySelectorAll(selector)) {
+            setElementValue(element, "");
+          }
+        }
+        controlledValue = "";
+      }
+
+      function setElementValue(element, value) {
+        if (element.isContentEditable) {
+          element.textContent = value;
+          return;
+        }
+
+        if (element instanceof HTMLTextAreaElement) {
+          nativeTextAreaValue.set.call(element, value);
+          return;
+        }
+
+        nativeInputValue.set.call(element, value);
+      }
+
+      function getValue(id) {
+        const element = document.getElementById(id);
+        return element.isContentEditable ? element.textContent : element.value;
+      }
+
+      function focusField(id, start, end) {
+        const element = document.getElementById(id);
+        element.focus();
+
+        if (element.isContentEditable) {
+          const range = document.createRange();
+          range.selectNodeContents(element);
+          range.collapse(false);
+          const selection = document.getSelection();
+          selection.removeAllRanges();
+          selection.addRange(range);
+          return;
+        }
+
+        if ("setSelectionRange" in element) {
+          try {
+            const valueLength = element.value.length;
+            const selectionStart = Number.isInteger(start) ? start : valueLength;
+            const selectionEnd = Number.isInteger(end) ? end : selectionStart;
+            element.setSelectionRange(selectionStart, selectionEnd);
+          } catch {
+            // Types such as email do not expose text selection.
+          }
+        }
+      }
+
+      function rightClickField(id, start, end) {
+        focusField(id, start, end);
+        const element = document.getElementById(id);
+        element.dispatchEvent(new MouseEvent("contextmenu", {
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          button: 2
+        }));
+      }
+
+      function appendLog(line) {
+        const timestamp = new Date().toLocaleTimeString();
+        logElement.textContent = `${timestamp} ${line}\n${logElement.textContent}`;
+      }
+
+      window.forcePasteTest = {
+        blockedIds,
+
+        assertPasteBlocked(id) {
+          const event = new ClipboardEvent("paste", {
+            bubbles: true,
+            cancelable: true
+          });
+          return document.getElementById(id).dispatchEvent(event) === false;
+        },
+
+        assertBeforeInputPasteBlocked(id) {
+          const event = new InputEvent("beforeinput", {
+            bubbles: true,
+            cancelable: true,
+            inputType: "insertFromPaste",
+            data: "blocked"
+          });
+          return document.getElementById(id).dispatchEvent(event) === false;
+        },
+
+        assertControlledRejectsDirectPasteLikeChange() {
+          clearFields();
+          controlledInput.value = "this direct assignment should be rejected";
+          return controlledInput.value === "" && controlledValue === "";
+        },
+
+        clearFields,
+        focusField,
+        getValue,
+        rightClickField,
+        setFieldValue(id, value) {
+          setElementValue(document.getElementById(id), value);
+        },
+
+        sendForcePaste(text) {
+          if (!window.__forcePasteMessageListener) {
+            throw new Error("Force Paste test harness is not installed.");
+          }
+
+          return new Promise((resolve) => {
+            window.__forcePasteMessageListener({
+              type: "FORCE_PASTE_TEXT",
+              text
+            }, {}, resolve);
+          });
+        },
+
+        get controlledValue() {
+          return controlledValue;
+        }
+      };
+    </script>
+  </body>
+</html>

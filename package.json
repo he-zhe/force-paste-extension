@@ -1,0 +1,15 @@
+{
+  "name": "force-paste-extension",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "test": "node tests/run-browser-integration.mjs",
+    "test:integration": "node tests/run-browser-integration.mjs",
+    "serve:test": "python3 -m http.server 8000"
+  },
+  "devDependencies": {
+    "puppeteer-core": "^25.1.0"
+  }
+}
