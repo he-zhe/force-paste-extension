@@ -5,6 +5,15 @@
   }
   globalThis[loadMarker] = true;
 
+  const editableInputTypes = new Set([
+    "email",
+    "password",
+    "search",
+    "tel",
+    "text",
+    "url"
+  ]);
+
   let lastEditableTarget = null;
   let lastInputSelection = null;
   let lastEditableRange = null;
@@ -25,12 +34,19 @@
   function rememberEditableTarget(event) {
     const target = findEditableFromEvent(event);
     if (!target) {
+      clearRememberedEditableTarget();
       return;
     }
 
     lastEditableTarget = target;
     lastInputSelection = captureInputSelection(target);
     lastEditableRange = captureContentEditableRange(target);
+  }
+
+  function clearRememberedEditableTarget() {
+    lastEditableTarget = null;
+    lastInputSelection = null;
+    lastEditableRange = null;
   }
 
   function forcePasteText(text) {
@@ -61,8 +77,8 @@
       return lastEditableTarget;
     }
 
-    const activeElement = getDeepActiveElement(document);
-    if (isEditable(activeElement)) {
+    const activeElement = normalizeEditableTarget(getDeepActiveElement(document));
+    if (activeElement) {
       return activeElement;
     }
 
@@ -72,12 +88,29 @@
   function findEditableFromEvent(event) {
     const path = typeof event.composedPath === "function" ? event.composedPath() : [];
     for (const item of path) {
-      if (isEditable(item)) {
-        return item;
+      const target = normalizeEditableTarget(item);
+      if (target) {
+        return target;
       }
     }
 
-    return isEditable(event.target) ? event.target : null;
+    return normalizeEditableTarget(event.target);
+  }
+
+  function normalizeEditableTarget(element) {
+    if (!(element instanceof Element)) {
+      return null;
+    }
+
+    if (element instanceof HTMLTextAreaElement) {
+      return isEditableTextArea(element) ? element : null;
+    }
+
+    if (element instanceof HTMLInputElement) {
+      return isEditableInput(element) ? element : null;
+    }
+
+    return getContentEditableHost(element);
   }
 
   function getDeepActiveElement(root) {
@@ -96,14 +129,18 @@
     }
 
     if (element instanceof HTMLTextAreaElement) {
-      return !element.disabled && !element.readOnly;
+      return isEditableTextArea(element);
     }
 
     if (element instanceof HTMLInputElement) {
       return isEditableInput(element);
     }
 
-    return element.isContentEditable;
+    return Boolean(getContentEditableHost(element));
+  }
+
+  function isEditableTextArea(textarea) {
+    return !textarea.disabled && !textarea.readOnly;
   }
 
   function isEditableInput(input) {
@@ -111,17 +148,20 @@
       return false;
     }
 
-    return !new Set([
-      "button",
-      "checkbox",
-      "file",
-      "hidden",
-      "image",
-      "radio",
-      "range",
-      "reset",
-      "submit"
-    ]).has(input.type);
+    return editableInputTypes.has(input.type);
+  }
+
+  function getContentEditableHost(element) {
+    if (!element.isContentEditable) {
+      return null;
+    }
+
+    let host = element;
+    while (host.parentElement?.isContentEditable) {
+      host = host.parentElement;
+    }
+
+    return host;
   }
 
   function isTextControl(element) {

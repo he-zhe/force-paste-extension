@@ -47,6 +47,8 @@ async function main() {
     await assertDirectPasteLikeAssignmentIsRejected(page);
     await assertRightClickTargetIsPreserved(page);
     await assertTextSelectionReplacement(page);
+    await assertContentEditableSelectionUsesEditingHost(page);
+    await assertUnsupportedInputTypeDoesNotUseStaleTarget(page);
     await assertForcePasteWorksAcrossFieldTypes(page);
     await assertIframeForcePasteWorks(iframe);
 
@@ -195,6 +197,64 @@ async function assertTextSelectionReplacement(page) {
 
   assert(result.response.ok, result.response.error || "Force Paste failed.");
   assert(result.value === "aXXd", `Expected selected text to be replaced, got ${JSON.stringify(result.value)}.`);
+}
+
+async function assertContentEditableSelectionUsesEditingHost(page) {
+  const result = await page.evaluate(async () => {
+    window.forcePasteTest.clearFields();
+
+    const editable = document.getElementById("blocked-editable");
+    editable.innerHTML = '<span id="editable-first">a</span><span>b</span>';
+    editable.focus();
+
+    const range = document.createRange();
+    range.selectNodeContents(editable);
+    const selection = document.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+
+    document.getElementById("editable-first").dispatchEvent(new MouseEvent("contextmenu", {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      button: 2
+    }));
+
+    const response = await window.forcePasteTest.sendForcePaste("X");
+
+    return {
+      response,
+      html: editable.innerHTML,
+      text: editable.textContent
+    };
+  });
+
+  assert(result.response.ok, result.response.error || "Force Paste failed for nested contenteditable.");
+  assert(result.text === "X", `Expected nested contenteditable selection to be replaced, got ${JSON.stringify(result.html)}.`);
+}
+
+async function assertUnsupportedInputTypeDoesNotUseStaleTarget(page) {
+  const result = await page.evaluate(async () => {
+    window.forcePasteTest.clearFields();
+
+    window.forcePasteTest.rightClickField("blocked-input");
+    const seedResponse = await window.forcePasteTest.sendForcePaste("seed");
+
+    window.forcePasteTest.rightClickField("blocked-number");
+    const numberResponse = await window.forcePasteTest.sendForcePaste("123");
+
+    return {
+      seedResponse,
+      numberResponse,
+      textValue: window.forcePasteTest.getValue("blocked-input"),
+      numberValue: window.forcePasteTest.getValue("blocked-number")
+    };
+  });
+
+  assert(result.seedResponse.ok, result.seedResponse.error || "Initial Force Paste setup failed.");
+  assert(!result.numberResponse.ok, "Unsupported number input reported a successful Force Paste.");
+  assert(result.textValue === "seed", `Unsupported input reused a stale target; text input is ${JSON.stringify(result.textValue)}.`);
+  assert(result.numberValue === "", `Expected unsupported number input to remain empty, got ${JSON.stringify(result.numberValue)}.`);
 }
 
 async function assertForcePasteWorksAcrossFieldTypes(page) {

@@ -209,6 +209,12 @@
         </section>
 
         <section>
+          <label for="blocked-number">Number input <span class="badge">blocked</span></label>
+          <p class="hint">Non-text input types should not report a false successful text paste.</p>
+          <input id="blocked-number" data-block-paste type="number" autocomplete="off">
+        </section>
+
+        <section>
           <label for="blocked-textarea">Textarea <span class="badge">blocked</span></label>
           <p class="hint">Multi-line text control with paste blocked.</p>
           <textarea id="blocked-textarea" data-block-paste autocomplete="off"></textarea>
@@ -244,6 +250,7 @@
         "blocked-input",
         "blocked-password",
         "blocked-email",
+        "blocked-number",
         "blocked-textarea",
         "blocked-editable",
         "blocked-controlled"
