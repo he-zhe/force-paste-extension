@@ -19,7 +19,6 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 
   handleForcePaste(info, tab).catch((error) => {
     console.error("Force Paste failed", error);
-    sendStatusToFrame(tab.id, info.frameId, `Force Paste failed: ${error.message}`, true);
   });
 });
 
@@ -95,18 +94,6 @@ async function pasteTextIntoTab(tabId, frameId, text) {
       secondError.message = `${secondError.message}; initial delivery failed with: ${firstError.message}`;
       throw secondError;
     }
-  }
-}
-
-async function sendStatusToFrame(tabId, frameId, text, isError = false) {
-  try {
-    await sendMessageToFrame(tabId, frameId, {
-      type: "FORCE_PASTE_STATUS",
-      text,
-      isError
-    });
-  } catch {
-    // The target may be a restricted Chrome page or a page without our content script.
   }
 }
 

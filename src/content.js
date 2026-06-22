@@ -8,21 +8,14 @@
   let lastEditableTarget = null;
   let lastInputSelection = null;
   let lastEditableRange = null;
-  let toastTimer = null;
 
   document.addEventListener("contextmenu", rememberEditableTarget, true);
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message?.type === "FORCE_PASTE_TEXT") {
       const result = forcePasteText(message.text || "");
-      showToast(result.ok ? "Force pasted" : result.error, !result.ok);
+      logPasteResult(result);
       sendResponse(result);
-      return false;
-    }
-
-    if (message?.type === "FORCE_PASTE_STATUS") {
-      showToast(message.text, Boolean(message.isError));
-      sendResponse({ ok: true });
       return false;
     }
 
@@ -154,8 +147,7 @@
     dispatchInputEvents(element, text, "insertFromPaste");
 
     return {
-      ok: true,
-      value: nextValue
+      ok: true
     };
   }
 
@@ -239,8 +231,7 @@
     dispatchInputEvents(element, text, "insertText");
 
     return {
-      ok: true,
-      value: element.textContent
+      ok: true
     };
   }
 
@@ -305,48 +296,13 @@
     }));
   }
 
-  function showToast(text, isError = false) {
-    if (!document.documentElement) {
+  function logPasteResult(result) {
+    if (result.ok) {
+      console.debug("Force Paste completed.");
       return;
     }
 
-    const toast = getToastElement();
-    toast.textContent = text;
-    toast.dataset.state = isError ? "error" : "ok";
-    toast.hidden = false;
-
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => {
-      toast.hidden = true;
-    }, 2200);
+    console.warn("Force Paste failed:", result.error || "Unknown error.");
   }
 
-  function getToastElement() {
-    let toast = document.getElementById("__force_paste_toast");
-    if (toast) {
-      return toast;
-    }
-
-    toast = document.createElement("div");
-    toast.id = "__force_paste_toast";
-    toast.setAttribute("role", "status");
-    toast.hidden = true;
-    toast.style.cssText = [
-      "position:fixed",
-      "right:16px",
-      "bottom:16px",
-      "z-index:2147483647",
-      "max-width:min(320px,calc(100vw - 32px))",
-      "padding:10px 12px",
-      "border-radius:6px",
-      "box-shadow:0 8px 28px rgba(0,0,0,.22)",
-      "font:13px/1.4 system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif",
-      "background:#202124",
-      "color:#fff",
-      "word-break:break-word"
-    ].join(";");
-
-    document.documentElement.appendChild(toast);
-    return toast;
-  }
 })();
